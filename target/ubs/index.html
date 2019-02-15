@@ -1,0 +1,173 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+
+<title>Bionexo - UBS</title>
+
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- BootstrapCDN -->
+<link rel="stylesheet"
+	href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
+<script
+	src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"
+></script>
+
+<!-- JqueryCDN -->
+<script
+	src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+
+<script
+	src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"></script>
+
+
+<link rel="shortcut icon" type="image/x-icon"
+	href="docs/images/favicon.ico" />
+
+<link rel="stylesheet"
+	href="https://unpkg.com/leaflet@1.4.0/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.4.0/dist/leaflet.js"></script>
+
+<!-- LeafLetSearch -->
+<!-- <script type="text/javascript" src="js/leaflet.js"></script> -->
+<link rel="stylesheet" href="css/leaflet.css" />
+
+<!-- LeafLetSearch -->
+<script type="text/javascript" src="js/leaflet-search.src.js"></script>
+<link rel="stylesheet" href="css/leaflet-search.min.css" />
+
+<!-- LeafLetListMarker -->
+<script type="text/javascript" src="js/leaflet-list-markers.min.js"></script>
+<link rel="stylesheet" href="css/leaflet-list-markers.css" />
+
+
+</head>
+<body>
+	<header>
+		<nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
+			<a class="navbar-brand" href="#">BIONEXO</a>
+			<button class="navbar-toggler" type="button" data-toggle="collapse"
+				data-target="#navbarCollapse" aria-controls="navbarCollapse"
+				aria-expanded="false" aria-label="Toggle navigation">
+				<span class="navbar-toggler-icon"></span>
+			</button>
+		</nav>
+	</header>
+	<div id="mapid" style="width: 100%; height: 600px; margin-top: 50px;"></div>
+	<script>
+		var map = new L.Map('mapid', {zoom: 12, minZoom:12, center: L.latLng(-23.591220, -46.686804) });
+		
+		//Icones
+		var ubsIcon = L.icon({
+			iconUrl : 'images/ubs.png',
+
+			iconSize : [ 40, 40 ], 
+			iconAnchor : [ 22, 94 ], 
+			popupAnchor : [ -3, -76 ]
+		});
+		
+		var ubsIconSelected = L.icon({
+			iconUrl : 'images/ubs.png',
+			iconSize : [ 50, 50 ], // size of the icon
+			iconAnchor : [ 22, 94 ], // point of the icon which will correspond to marker's location
+			popupAnchor : [ -3, -76 ]
+		});
+		
+		// Carrega os dados para o mapa
+		L.tileLayer(
+						'https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw',
+						{
+							attribution : 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, '
+									+ '<a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, '
+									+ 'Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+							id : 'mapbox.streets'
+						}).addTo(map);
+		
+		// Cria um circulo no resultado da busca
+		var myMarker = L.circleMarker([ 0, 0 ], {
+			title : "Coordinates",
+			alt : "Coordinates",
+			draggable : true
+		}).addTo(map).on('dragend', function() {
+			var lat = myMarker.getLatLng().lat.toFixed(8);
+			var lon = myMarker.getLatLng().lng.toFixed(8);
+			document.getElementById('lat').value = lat;
+			document.getElementById('lon').value = lon;
+			myMarker.bindPopup("Lat " + lat + "<br />Lon " + lon).openPopup();
+		});
+		
+		// Campo search
+		var search = new L.Control.Search(
+				{
+					url : 'https://nominatim.openstreetmap.org/search?format=json&q={s}',
+					jsonpParam : 'json_callback',
+					propertyName : 'display_name',
+					propertyLoc : [ 'lat', 'lon' ],
+					marker : myMarker,
+					autoCollapse : true,
+					autoType : false,
+					moveToLocation : function(latlng, title, map) {
+						//https://wiki.openstreetmap.org/wiki/Shortlink
+						var url = L.Util
+								.template(
+										'http://localhost:8080/ubs/rest/ubsprox?lat={lat}&lng={lng}',
+										{
+											lat : latlng.lat,
+											lng : latlng.lng
+
+										});
+						map.setView(latlng, 12);
+						var markersLayer = new L.LayerGroup(); 
+						map.addLayer(markersLayer);
+						addUbs(url, markersLayer);
+					},
+					minLength : 2
+				});
+
+		map.addControl(search);
+
+		// Consulta o serviço e add os marcadores
+		function addUbs(url, markersLayer) {
+			$.getJSON(url, function(data) {
+				var items = [];
+				$.each(data, function(key, val) {
+					addMarker(val, markersLayer);
+				});
+
+				addListMarkers(markersLayer);
+			});
+		}
+
+		// Add o marcador de fato
+		function addMarker(ubs, markersLayer) {
+			L.marker([ ubs.lat, ubs.lng ],
+					{icon : ubsIcon, title : ubs.name})
+					.addTo(markersLayer).bindPopup(ubs.name);
+		}
+
+		// Adiciona a lista de Ubs
+		function addListMarkers(markersLayer) {
+			var list = new L.Control.ListMarkers({
+				layer : markersLayer,
+				itemIcon : null,
+				position: 'topright', 
+			});
+
+			list.on('item-mouseover', function(e) {
+				e.layer.setIcon(ubsIconSelected);
+				e.layer.openPopup()
+			}).on('item-mouseout', function(e) {
+				e.layer.setIcon(ubsIcon)
+			});
+
+			map.addControl(list);
+		}
+		
+		var popup = L.popup();
+	</script>
+	<input type="hidden" id="init-data"
+		value="{&quot;__browser&quot;:{&quot;device&quot;:&quot;unknown&quot;,&quot;name&quot;:&quot;chrome&quot;,&quot;platform&quot;:&quot;linux&quot;,&quot;version&quot;:&quot;71&quot;},&quot;__analytics&quot;:{&quot;controllerActionName&quot;:&quot;show&quot;,&quot;controllerName&quot;:&quot;pen&quot;,&quot;enabled&quot;:true,&quot;heapEnvironmentId&quot;:2625472963},&quot;__remote_addr&quot;:&quot;177.155.83.34&quot;,&quot;__cookieUsed&quot;:true,&quot;__CPDATA&quot;:{&quot;domain&quot;:&quot;https://codepen.io&quot;,&quot;domain_iframe&quot;:&quot;https://s.codepen.io&quot;,&quot;host&quot;:&quot;codepen.io&quot;,&quot;asset_host&quot;:&quot;static.codepen.io&quot;,&quot;embed_asset_host&quot;:&quot;static.codepen.io&quot;,&quot;host_secure_subdomain&quot;:&quot;s.&quot;,&quot;iframe_sandbox&quot;:&quot;allow-forms allow-modals allow-pointer-lock allow-popups allow-presentation allow-same-origin allow-scripts&quot;,&quot;iframe_allow&quot;:&quot;geolocation; microphone; camera; midi; vr; accelerometer; gyroscope; payment; ambient-light-sensor&quot;},&quot;__env&quot;:&quot;production&quot;,&quot;__mobile&quot;:false,&quot;__turnOffJS&quot;:false,&quot;__constants&quot;:{&quot;grid_iframe_sandbox_attributes&quot;:&quot;allow-scripts allow-pointer-lock allow-same-origin&quot;},&quot;__user&quot;:{&quot;anon&quot;:true,&quot;base_url&quot;:&quot;/anon/&quot;,&quot;current_team_id&quot;:0,&quot;hashid&quot;:&quot;VoDkNZ&quot;,&quot;id&quot;:1,&quot;itemType&quot;:&quot;user&quot;,&quot;name&quot;:&quot;Captain Anonymous&quot;,&quot;owner_id&quot;:&quot;VoDkNZYdEzGn&quot;,&quot;paid&quot;:false,&quot;session_hash&quot;:&quot;c249e2b4cb2bdf7289d22945a0ca13a1&quot;,&quot;tier&quot;:0,&quot;username&quot;:&quot;anon&quot;},&quot;__firestore&quot;:{&quot;config&quot;:{&quot;apiKey&quot;:&quot;AIzaSyBgLAe7N_MdFpuVofMkcQLGwwhUu5tuxls&quot;,&quot;authDomain&quot;:&quot;codepen-store-production.firebaseapp.com&quot;,&quot;databaseURL&quot;:&quot;https://codepen-store-production.firebaseio.com&quot;,&quot;projectId&quot;:&quot;codepen-store-production&quot;},&quot;token&quot;:&quot;eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiJodHRwczovL2lkZW50aXR5dG9vbGtpdC5nb29nbGVhcGlzLmNvbS9nb29nbGUuaWRlbnRpdHkuaWRlbnRpdHl0b29sa2l0LnYxLklkZW50aXR5VG9vbGtpdCIsImNsYWltcyI6eyJvd25lcklkIjoiVm9Ea05aWWRFekduIiwiYWRtaW4iOmZhbHNlfSwiZXhwIjoxNTUwMTA0MTE4LCJpYXQiOjE1NTAxMDA1MTgsImlzcyI6ImZpcmViYXNlLWFkbWluc2RrLThva3lsQGNvZGVwZW4tc3RvcmUtcHJvZHVjdGlvbi5pYW0uZ3NlcnZpY2VhY2NvdW50LmNvbSIsInN1YiI6ImZpcmViYXNlLWFkbWluc2RrLThva3lsQGNvZGVwZW4tc3RvcmUtcHJvZHVjdGlvbi5pYW0uZ3NlcnZpY2VhY2NvdW50LmNvbSIsInVpZCI6IlZvRGtOWiJ9.jrjHjjqNmVWXnjnwJI6Bs0C_30KaNB2CltF_3lwNAexCNuGeSNnAlfud-aOWSnfodve82ZkabjZue4YXtDbzrSnIqwOEKn8uwHwk0sKFOvQgYP2LJKRP5LbglDImWBSccmubod9dlPHzIF_EV0rJwuVo2fs3MSiV_YtL_13Ufy6cIKLHkNq3fOxCNDGtByCESv5YRVLWiHVLQMe1e_CCvxd9SX8S_wnApH-xU22DvZUjz_LVjzq5KNVy072gP5WX-TN9VGo6aMzqWwEuZGjRRFM_4vKPqs10NssZCMPe0NYDlO-ePj9TrbYYqR12DOx-VmIUGG924VToN5j1uoMmNw&quot;},&quot;__graphql&quot;:{&quot;data&quot;:{&quot;sessionUser&quot;:{&quot;id&quot;:&quot;VoDkNZ&quot;,&quot;name&quot;:&quot;Captain Anonymous&quot;,&quot;avatar80&quot;:&quot;https://static.codepen.io/assets/avatars/user-avatar-80x80-bdcd44a3bfb9a5fd01eb8b86f9e033fa1a9897c3a15b33adfc2649a002dab1b6.png&quot;,&quot;avatar512&quot;:&quot;https://static.codepen.io/assets/avatars/user-avatar-512x512-6e240cf350d2f1cc07c2bed234c3a3bb5f1b237023c204c782622e80d6b212ba.png&quot;,&quot;currentContext&quot;:{&quot;id&quot;:&quot;VoDkNZ&quot;,&quot;baseUrl&quot;:&quot;/anon&quot;,&quot;title&quot;:&quot;Captain Anonymous&quot;,&quot;name&quot;:&quot;Captain Anonymous&quot;,&quot;avatar80&quot;:&quot;https://static.codepen.io/assets/avatars/user-avatar-80x80-bdcd44a3bfb9a5fd01eb8b86f9e033fa1a9897c3a15b33adfc2649a002dab1b6.png&quot;,&quot;avatar512&quot;:&quot;https://static.codepen.io/assets/avatars/user-avatar-512x512-6e240cf350d2f1cc07c2bed234c3a3bb5f1b237023c204c782622e80d6b212ba.png&quot;,&quot;username&quot;:&quot;anon&quot;,&quot;contextType&quot;:&quot;USER&quot;,&quot;__typename&quot;:&quot;User&quot;},&quot;currentTeamId&quot;:null,&quot;baseUrl&quot;:&quot;/anon&quot;,&quot;username&quot;:&quot;anon&quot;,&quot;admin&quot;:false,&quot;anon&quot;:true,&quot;pro&quot;:false,&quot;teams&quot;:[],&quot;projectLimitations&quot;:{&quot;projects&quot;:0,&quot;usedProjects&quot;:0,&quot;__typename&quot;:&quot;ProjectLimitations&quot;},&quot;permissions&quot;:{&quot;canCreatePrivate&quot;:false,&quot;__typename&quot;:&quot;UserPermissions&quot;},&quot;__typename&quot;:&quot;User&quot;}}},&quot;__pageType&quot;:&quot;pen&quot;,&quot;__jwt&quot;:&quot;eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRhIjp7InVzZXJfaWQiOiJWb0RrTloiLCJ1c2VybmFtZSI6ImFub24ifSwiZXhwIjoxNTUwMTg2OTE4fQ.0mPc5qc_jdtA_zVVxxdGmf345GNqe5iw26jWq8ID72g&quot;,&quot;__preprocessors_url&quot;:&quot;https://processors.codepen.io/production-router&quot;,&quot;__layoutType&quot;:null,&quot;__rtData&quot;:&quot;{\&quot;maxMembers\&quot;:0,\&quot;roomID\&quot;:\&quot;dafBD/live\&quot;,\&quot;roomType\&quot;:\&quot;live\&quot;,\&quot;updatedAt\&quot;:1407284744,\&quot;user\&quot;:{\&quot;id\&quot;:\&quot;VoDkNZ\&quot;,\&quot;hashid\&quot;:\&quot;VoDkNZ\&quot;,\&quot;name\&quot;:\&quot;Captain Anonymous\&quot;,\&quot;username\&quot;:\&quot;anon\&quot;,\&quot;role\&quot;:\&quot;editor\&quot;}}&quot;,&quot;__item&quot;:&quot;{\&quot;custom_screenshot\&quot;:null,\&quot;editor_settings\&quot;:{\&quot;theme\&quot;:\&quot;twilight\&quot;,\&quot;html_pre_processor\&quot;:\&quot;none\&quot;,\&quot;css_pre_processor\&quot;:\&quot;none\&quot;,\&quot;css_starter\&quot;:\&quot;neither\&quot;,\&quot;css_prefix\&quot;:\&quot;neither\&quot;,\&quot;js_pre_processor\&quot;:\&quot;none\&quot;,\&quot;font_type\&quot;:\&quot;monaco\&quot;,\&quot;font_size\&quot;:\&quot;14\&quot;,\&quot;key_bindings\&quot;:\&quot;normal\&quot;,\&quot;indent_with\&quot;:\&quot;spaces\&quot;,\&quot;tab_size\&quot;:\&quot;2\&quot;,\&quot;auto_run\&quot;:true,\&quot;line_numbers\&quot;:true,\&quot;line_wrapping\&quot;:true,\&quot;code_folding\&quot;:true,\&quot;match_brackets\&quot;:true,\&quot;autocomplete\&quot;:false,\&quot;emmet_active\&quot;:true,\&quot;snippets\&quot;:{\&quot;markupSnippets\&quot;:{},\&quot;stylesheetSnippets\&quot;:{}}},\&quot;hashid\&quot;:\&quot;VwQmBZ\&quot;,\&quot;itemType\&quot;:\&quot;pen\&quot;,\&quot;npm_packages\&quot;:{},\&quot;owner_id\&quot;:\&quot;DoNzayYdEzGn\&quot;,\&quot;resources\&quot;:[{\&quot;url\&quot;:\&quot;//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.3/jquery.min.js\&quot;,\&quot;order\&quot;:0,\&quot;resource_type\&quot;:\&quot;js\&quot;,\&quot;action\&quot;:\&quot;include_js_url\&quot;,\&quot;content\&quot;:\&quot;\&quot;,\&quot;original_content\&quot;:\&quot;\&quot;,\&quot;text_to_replace\&quot;:null}],\&quot;tags\&quot;:[\&quot;leaflet\&quot;,\&quot;scalebar\&quot;,\&quot;map\&quot;],\&quot;id\&quot;:1843314,\&quot;user_id\&quot;:96645,\&quot;html\&quot;:\&quot;\\t&lt;div id=\\\&quot;map\\\&quot;&gt;&lt;/div&gt;\\n&lt;div class=&#39;pointer&#39;&gt;&lt;&lt; Click search button&lt;/div&gt;\\n\\n\\n\&quot;,\&quot;css\&quot;:\&quot;body,\\nhtml {\\n  height: 100%;\\n  font-family:Arial;\\n}\\n  \\n#map {\\n  width: 100%;\\n  height: 100%;\\n  z-index:100;\\n}\\n#mapSearchContainer{\\n  position:fixed;\\n  top:20px;\\n  right: 40px;\\n  height:30px;\\n  width:180px;\\n  z-index:110;\\n  font-size:10pt;\\n  color:#5d5d5d;\\n  border:solid 1px #bbb;\\n  background-color:#f8f8f8;\\n}\\n.pointer{\\n  position:absolute;\\n  top:86px;\\n  left:60px;\\n  z-index:99999;\\n}\&quot;,\&quot;parent\&quot;:1843272,\&quot;js\&quot;:\&quot;// Initialize the map and assign it to a variable for later use\\nvar map = L.map(&#39;map&#39;, {\\n    // Set latitude and longitude of the map center (required)\\n    center: [37.7833, -122.4167],\\n    // Set the initial zoom level, values 0-18, where 0 is most zoomed-out (required)\\n    zoom: 10\\n});\\n\\nL.control.scale().addTo(map);\\n\\n// Create a Tile Layer and add it to the map\\n//var tiles = new L.tileLayer(&#39;http://{s}.tile.stamen.com/watercolor/{z}/{x}/{y}.png&#39;).addTo(map);\\nL.tileLayer(&#39;http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png&#39;, {\\n    attribution: &#39;&amp;copy; &lt;a href=\\\&quot;http://osm.org/copyright\\\&quot;&gt;OpenStreetMap&lt;/a&gt; contributors&#39;\\n  }).addTo(map);\\n\\n  var searchControl = new L.esri.Controls.Geosearch().addTo(map);\\n\\n  var results = new L.LayerGroup().addTo(map);\\n\\n  searchControl.on(&#39;results&#39;, function(data){\\n    results.clearLayers();\\n    for (var i = data.results.length - 1; i &gt;= 0; i--) {\\n      results.addLayer(L.marker(data.results[i].latlng));\\n    }\\n  });\\n\\nsetTimeout(function(){$(&#39;.pointer&#39;).fadeOut(&#39;slow&#39;);},3400);\&quot;,\&quot;html_pre_processor\&quot;:\&quot;none\&quot;,\&quot;css_pre_processor\&quot;:\&quot;none\&quot;,\&quot;js_pre_processor\&quot;:\&quot;none\&quot;,\&quot;html_classes\&quot;:\&quot;\&quot;,\&quot;css_starter\&quot;:\&quot;neither\&quot;,\&quot;css_prefix_free\&quot;:null,\&quot;css_external\&quot;:\&quot;\&quot;,\&quot;js_library\&quot;:\&quot;jquery\&quot;,\&quot;js_modernizr\&quot;:false,\&quot;js_external\&quot;:\&quot;\&quot;,\&quot;created_at\&quot;:\&quot;2014-07-25T20:54:04.000Z\&quot;,\&quot;updated_at\&quot;:\&quot;2014-08-06T00:25:44.000Z\&quot;,\&quot;session_hash\&quot;:\&quot;72b3298451c3936d7fa18d60f19b42ed\&quot;,\&quot;title\&quot;:\&quot;leaflet map with place search\&quot;,\&quot;description\&quot;:\&quot;with scale bar, zoom, search\&quot;,\&quot;slug_hash\&quot;:\&quot;dafBD\&quot;,\&quot;head\&quot;:\&quot;&lt;link rel=\\\&quot;stylesheet\\\&quot; href=\\\&quot;http://cdn.leafletjs.com/leaflet-0.7.2/leaflet.css\\\&quot; /&gt;\\n&lt;script src=\\\&quot;http://cdn.leafletjs.com/leaflet-0.7.2/leaflet.js\\\&quot;&gt;&lt;/script&gt;\\n&lt;script src=\\\&quot;https://cdn-geoweb.s3.amazonaws.com/esri-leaflet/0.0.1-beta.5/esri-leaflet.js\\\&quot;&gt;&lt;/script&gt;\\n&lt;script src=\\\&quot;https://cdn-geoweb.s3.amazonaws.com/esri-leaflet-geocoder/0.0.1-beta.5/esri-leaflet-geocoder.js\\\&quot;&gt;&lt;/script&gt;\\n&lt;link rel=\\\&quot;stylesheet\\\&quot; type=\\\&quot;text/css\\\&quot; href=\\\&quot;https://cdn-geoweb.s3.amazonaws.com/esri-leaflet-geocoder/0.0.1-beta.5/esri-leaflet-geocoder.css\\\&quot;&gt;\\n\&quot;,\&quot;private\&quot;:false,\&quot;has_animation\&quot;:true,\&quot;css_pre_processor_lib\&quot;:\&quot;\&quot;,\&quot;checksum\&quot;:578028855,\&quot;screenshot_uuid\&quot;:\&quot;cd374f08-4bc7-45af-a5df-65cdbb94ae5b\&quot;,\&quot;team_id\&quot;:0,\&quot;css_prefix\&quot;:\&quot;neither\&quot;,\&quot;template\&quot;:false,\&quot;js_module\&quot;:null}&quot;,&quot;__profiled&quot;:{&quot;id&quot;:96645,&quot;hashid&quot;:&quot;DoNzay&quot;,&quot;name&quot;:&quot;m&quot;,&quot;username&quot;:&quot;exomark&quot;,&quot;type&quot;:&quot;user&quot;,&quot;is_team&quot;:false,&quot;base_url&quot;:&quot;/exomark&quot;},&quot;__preprocessors&quot;:{&quot;html&quot;:{&quot;syntaxes&quot;:[&quot;none&quot;,&quot;html&quot;,&quot;markdown&quot;,&quot;slim&quot;,&quot;haml&quot;,&quot;pug&quot;],&quot;default&quot;:&quot;none&quot;,&quot;preprocessors&quot;:[&quot;markdown&quot;,&quot;slim&quot;,&quot;haml&quot;,&quot;pug&quot;],&quot;pretty_syntaxes&quot;:{&quot;none&quot;:&quot;None&quot;,&quot;haml&quot;:&quot;Haml&quot;,&quot;markdown&quot;:&quot;Markdown&quot;,&quot;slim&quot;:&quot;Slim&quot;,&quot;pug&quot;:&quot;Pug&quot;}},&quot;css&quot;:{&quot;syntaxes&quot;:[&quot;none&quot;,&quot;css&quot;,&quot;sass&quot;,&quot;scss&quot;,&quot;less&quot;,&quot;stylus&quot;,&quot;postcss&quot;],&quot;default&quot;:&quot;none&quot;,&quot;preprocessors&quot;:[&quot;sass&quot;,&quot;scss&quot;,&quot;less&quot;,&quot;stylus&quot;,&quot;postcss&quot;],&quot;pretty_syntaxes&quot;:{&quot;none&quot;:&quot;None&quot;,&quot;less&quot;:&quot;Less&quot;,&quot;scss&quot;:&quot;SCSS&quot;,&quot;sass&quot;:&quot;Sass&quot;,&quot;stylus&quot;:&quot;Stylus&quot;,&quot;postcss&quot;:&quot;PostCSS&quot;},&quot;prefixes&quot;:[&quot;autoprefixer&quot;,&quot;prefixfree&quot;,&quot;neither&quot;],&quot;default_prefix&quot;:&quot;neither&quot;,&quot;exclude_emmet_syntaxes&quot;:[&quot;none&quot;,&quot;postcss&quot;],&quot;bases&quot;:[&quot;normalize&quot;,&quot;reset&quot;,&quot;neither&quot;],&quot;default_base&quot;:&quot;neither&quot;},&quot;js&quot;:{&quot;syntaxes&quot;:[&quot;none&quot;,&quot;js&quot;,&quot;coffee&quot;,&quot;coffeescript&quot;,&quot;livescript&quot;,&quot;typescript&quot;,&quot;babel&quot;],&quot;default&quot;:&quot;none&quot;,&quot;preprocessors&quot;:[&quot;coffeescript&quot;,&quot;livescript&quot;,&quot;typescript&quot;,&quot;babel&quot;],&quot;pretty_syntaxes&quot;:{&quot;none&quot;:&quot;None&quot;,&quot;babel&quot;:&quot;Babel&quot;,&quot;typescript&quot;:&quot;TypeScript&quot;,&quot;coffeescript&quot;:&quot;CoffeeScript&quot;,&quot;livescript&quot;:&quot;LiveScript&quot;},&quot;words_we_cannot_instrument&quot;:[&quot;requestAnimationFrame&quot;,&quot;setInterval&quot;]}},&quot;__debug_redirect&quot;:&quot;https://codepen.io/exomark/debug/dafBD&quot;,&quot;__webpack_public_path__&quot;:&quot;https://s3-us-west-2.amazonaws.com/codepen-packages-development&quot;,&quot;__feature_npm_enabled&quot;:false,&quot;__embed_modal_script&quot;:&quot;https://static.codepen.io/assets/embed/modal/embed_modal-14cd2cf598b87c839b4ee3175df41bd644a2719c0806196911173b09c30e7835.js&quot;,&quot;__path_to_details_comment_js&quot;:&quot;https://static.codepen.io/assets/details/comment-34fc4266757aa0fea79b9c0f4eed313de2ebade6b1f1e13b1d79c6e8fc01b157.js&quot;,&quot;__syntax_highlighting_script&quot;:&quot;https://static.codepen.io/assets/comments/syntax_highlight_comments-931c379515e798d6166918d9eb55082f2e4c98c70ea6ac7474e81ab425efb625.js&quot;,&quot;__run_mode_script&quot;:&quot;https://static.codepen.io/assets/libs/codemirror/addon/runmode/runmode-a1b10d795398a6e7f6700fed41feef1bee599b1755976a6a35b8de396c37439b.js&quot;,&quot;__standalone_run_mode_script&quot;:&quot;https://static.codepen.io/assets/libs/codemirror/addon/runmode/runmode-standalone-a0b9adb0804f1fa2d16a43744bb3f58365b5e3a74bfb3b5d98dcc30a17de4ad6.js&quot;,&quot;__favicon_mask_icon&quot;:&quot;https://static.codepen.io/assets/favicon/logo-pin-f2d2b6d2c61838f7e76325261b7195c27224080bc099486ddd6dccb469b8e8e6.svg&quot;,&quot;__favicon_shortcut_icon&quot;:&quot;https://static.codepen.io/assets/favicon/favicon-8ea04875e70c4b0bb41da869e81236e54394d63638a1ef12fa558a4a835f1164.ico&quot;,&quot;__path_to_console_runner_js&quot;:&quot;https://static.codepen.io/assets/editor/live/console_runner-1df7d3399bdc1f40995a35209755dcfd8c7547da127f6469fd81e5fba982f6af.js&quot;,&quot;__path_to_live_reloader_js&quot;:&quot;https://static.codepen.io/assets/editor/live/css_reload-5619dc0905a68b2e6298901de54f73cefe4e079f65a75406858d92924b4938bf.js&quot;,&quot;__path_to_processor_worker&quot;:&quot;https://static.codepen.io/assets/editor/processors/index-cc62cfba528b0776797e13eceb071e3af6ca9e0c0b3634ef48fd0393a1904533.js&quot;,&quot;__path_to_stop_execution_on_timeout&quot;:&quot;https://static.codepen.io/assets/common/stopExecutionOnTimeout-de7e2ef6bfefd24b79a3f68b414b87b8db5b08439cac3f1012092b2290c719cd.js&quot;,&quot;__pen_normalize_css_url&quot;:&quot;https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css&quot;,&quot;__pen_prefix_free_url&quot;:&quot;https://cdnjs.cloudflare.com/ajax/libs/prefixfree/1.0.7/prefixfree.min.js&quot;,&quot;__pen_reset_css_url&quot;:&quot;https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css&quot;,&quot;__cdn_css_url&quot;:&quot;https://static.codepen.io/assets/editor/other/cdn/cdncss_data-b2a6b09b819f5d5cad330bde53c28db816c78598cbec7c82693642c0f8198d81.json&quot;,&quot;__cdn_js_url&quot;:&quot;https://static.codepen.io/assets/editor/other/cdn/cdnjs_data-1ba370c14f6d31ca1535a87b2e3e151cf4b60d08485aba18ef86b137051f0175.json&quot;,&quot;__theme_url_twilight&quot;:&quot;https://static.codepen.io/assets/editor/themes/twilight-b7518ff1bf118a4a6b48775ddfdb976a668667d600d096fb0d9e937df72efe84.css&quot;,&quot;__theme_url_solarized_dark&quot;:&quot;https://static.codepen.io/assets/editor/themes/solarized-dark-a6a93d5998b21db203329d2dfe59edf784020357cef85557586ad1bc98571d55.css&quot;,&quot;__theme_url_tomorrow_night&quot;:&quot;https://static.codepen.io/assets/editor/themes/tomorrow-night-272c989e172e8017a56f73346bbb52b182cfd89dc322c27fd50f7f81aa3fb703.css&quot;,&quot;__theme_url_oceanic_dark&quot;:&quot;https://static.codepen.io/assets/editor/themes/oceanic-dark-05a081d309a0c8387a02539c0dc18452a4a9797fa48324de8ebe695d35dd6a9a.css&quot;,&quot;__theme_url_panda&quot;:&quot;https://static.codepen.io/assets/editor/themes/panda-c0156ea912ceecd7c816c9a4fae2bf03fd6637b1b6a2411c4bf54fc6f065c4e4.css&quot;,&quot;__theme_url_duotone_dark&quot;:&quot;https://static.codepen.io/assets/editor/themes/duotone-dark-e2a062e07aaf2106aec618e19a242c9dbe1cae5c62c460ff0b536da38df82968.css&quot;,&quot;__theme_url_classic&quot;:&quot;https://static.codepen.io/assets/editor/themes/classic-c8416e98431b016846c792e33630ebbc90032c861cd7e5d40b374e5d2199efe7.css&quot;,&quot;__theme_url_solarized_light&quot;:&quot;https://static.codepen.io/assets/editor/themes/solarized-light-407ebcfb211f5fd3f68be2b7af32ba862210462cebd62b36dd0a49259ca58cd2.css&quot;,&quot;__theme_url_xq_light&quot;:&quot;https://static.codepen.io/assets/editor/themes/xq-light-038e3da5f1ca4d3496e7ba11c1accd58d3fbbba5e14ae2d52972a1bff0fe3873.css&quot;,&quot;__theme_url_oceanic_light&quot;:&quot;https://static.codepen.io/assets/editor/themes/oceanic-light-895388241f2e923fd44008033702e58ca5a2b28d13bf7e54f182ef8c1484d6d9.css&quot;,&quot;__theme_url_mdn_like&quot;:&quot;https://static.codepen.io/assets/editor/themes/mdn-like-c47e2d5e69c91115fcf8b5dbd66e3e3535296b5e316d50e709b5aed2a3b0dc5b.css&quot;,&quot;__theme_url_duotone_light&quot;:&quot;https://static.codepen.io/assets/editor/themes/duotone-light-2bfddf552e8e26fd9017fa64112659152a2ef9f5cfbd97e7071eadcbfbf37926.css&quot;,&quot;__theme_url_scoped_twilight&quot;:&quot;https://static.codepen.io/assets/editor/themes/scoped/twilight-8cf72d24d20242742046b303b2be2f6f96d3a8b7723efb98f400005f1c4ab2e5.css&quot;,&quot;__theme_url_scoped_solarized_dark&quot;:&quot;https://static.codepen.io/assets/editor/themes/scoped/solarized-dark-1fd00a84628b364254a2749177597fcb294c86ba7d512b00ab6974a9e3c89d91.css&quot;,&quot;__theme_url_scoped_tomorrow_night&quot;:&quot;https://static.codepen.io/assets/editor/themes/scoped/tomorrow-night-0dd87944c0381dd89e9a740891f90ac37c78dea4a51d1b58d74051a451c3e95d.css&quot;,&quot;__theme_url_scoped_oceanic_dark&quot;:&quot;https://static.codepen.io/assets/editor/themes/scoped/oceanic-dark-4755ab0247c68498535ac04d79e71fee217fa3fb8dafcafd2785ef43bb89d32a.css&quot;,&quot;__theme_url_scoped_panda&quot;:&quot;https://static.codepen.io/assets/editor/themes/scoped/panda-55fa42aa84ec7117f77f5d57a259c80dd967b97a41d6631bfd8822bca699685e.css&quot;,&quot;__theme_url_scoped_duotone_dark&quot;:&quot;https://static.codepen.io/assets/editor/themes/scoped/duotone-dark-d0ba28cd671fbbca73eeb6cd35083e615eae4bca9786a3360c963ae1ca0a5b6d.css&quot;,&quot;__theme_url_scoped_classic&quot;:&quot;https://static.codepen.io/assets/editor/themes/scoped/classic-6ea2b50bd21a8bd5d0e56d0eceef7b7beea929342442ff7764a4cd585d26a4c3.css&quot;,&quot;__theme_url_scoped_solarized_light&quot;:&quot;https://static.codepen.io/assets/editor/themes/scoped/solarized-light-e8fef1fea8488dc4d88b4fa817d584f2298b400073f1b4cdfbc4173cba94eb9f.css&quot;,&quot;__theme_url_scoped_xq_light&quot;:&quot;https://static.codepen.io/assets/editor/themes/scoped/xq-light-edf68c6dec23afa6b9a1255a0728f43bf1d0829713c69759dad7be6e808895bc.css&quot;,&quot;__theme_url_scoped_oceanic_light&quot;:&quot;https://static.codepen.io/assets/editor/themes/scoped/oceanic-light-650835ca82104df7151017c17e98f633e4c89f9c3fd1dc9f8d9cf313f653b240.css&quot;,&quot;__theme_url_scoped_mdn_like&quot;:&quot;https://static.codepen.io/assets/editor/themes/scoped/mdn-like-c5fbadae05f1653de499e0f51f08ac8309b8ac8a72ffc3c9b27541da7d797e9f.css&quot;,&quot;__theme_url_scoped_duotone_light&quot;:&quot;https://static.codepen.io/assets/editor/themes/scoped/duotone-light-6b763075233fee8c9a1a37044250caecfd044d0704a8086445088798509e1cad.css&quot;}">
+</body>
+</html>

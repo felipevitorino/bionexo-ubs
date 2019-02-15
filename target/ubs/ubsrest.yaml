@@ -1,0 +1,108 @@
+swagger: '2.0'
+info:
+  description: >-
+    Essa aplicação tem como objetivo fornecer as UBS próximas dado uma
+    geolocalização
+  version: 1.0.0
+  title: Bionexo UBS
+  termsOfService: 'http://#'
+  contact:
+    email: desenvolvimento@bionexo.com.br
+  license:
+    name: Apache 2.0
+    url: 'http://www.apache.org/licenses/LICENSE-2.0.html'
+host: localhost:8080/ubs
+basePath: /rest
+schemes:
+  - http
+paths:
+  /ubsprox/:
+    get:
+      tags:
+        - ubs
+      summary: Procura por Lat Lng
+      description: Retorna as Ubs mais proximas
+      operationId: ubsprox
+      produces:
+        - application/json
+      parameters:
+        - name: lat
+          in: query
+          description: Latitude
+          required: true
+          type: number
+          format: int64
+        - name: lng
+          in: query
+          description: Longitude
+          required: true
+          type: number
+          format: int64
+      responses:
+        '200':
+          description: successful operation
+          schema:
+            $ref: '#/definitions/Ubs'
+        '400':
+          description: Invalid ID supplied
+        '404':
+          description: not found
+definitions:
+  Ubs:
+    type: object
+    required:
+      - name
+      - photoUrls
+    properties:
+      id:
+        type: number
+        example: '123'
+        description: Id da Ubs
+      name:
+        type: string
+        example: UBS Centro
+        description: Nome
+      adress:
+        type: string
+        example: Av Santo Amaro
+        description: Endere�o
+      cyty:
+        type: string
+        example: S�o Paulo
+        description: Cidade
+      phone:
+        type: string
+        example: 11 3636-4141
+        description: Telefone
+      geocode.lat:
+        type: number
+        example: '-23.456'
+        description: Latitude
+      geocode.lng:
+        type: number
+        example: '-45,678'
+        description: Longitude
+      scores.adption_for_seniors:
+        type: number
+        description: Adapta��es para idosos
+        enum:
+          - 1 - Desempenho acima da m�dia
+          - 2 - Desempenho mediano ou  um pouco abaixo da m�dia
+          - 3 - Desempenho muito acima da m�dia
+          - 0 - N�o Encontrado
+      scores.medical_equipament:
+        type: number
+        description: Equipamentos disponiveis
+        enum:
+          - 1 - Desempenho acima da m�dia
+          - 2 - Desempenho mediano ou  um pouco abaixo da m�dia
+          - 3 - Desempenho muito acima da m�dia
+          - 0 - N�o Encontrado
+      scores.medicine:
+        type: number
+        description: Medicos disponiveis
+        enum:
+          - 1 - Desempenho acima da m�dia
+          - 2 - Desempenho mediano ou  um pouco abaixo da m�dia
+          - 3 - Desempenho muito acima da m�dia
+          - 0 - N�o Encontrado

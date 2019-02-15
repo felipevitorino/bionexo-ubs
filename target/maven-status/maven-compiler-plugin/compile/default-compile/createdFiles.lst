@@ -1,0 +1,6 @@
+br/com/bionexo/ubs/controller/CalculaUbsProx.class
+br/com/bionexo/ubs/util/Desempenho.class
+br/com/bionexo/ubs/modelo/Ubs.class
+br/com/bionexo/ubs/util/JPAUtil.class
+br/com/bionexo/ubs/app/InsereUBS.class
+br/com/bionexo/ubs/rest/ConsultaUbsProx.class
